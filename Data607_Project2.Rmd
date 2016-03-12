@@ -1,0 +1,196 @@
+---
+title: "Data Project 2"
+author: "Jeff Nieman"
+date: "March 7, 2016"
+output: html_document
+---
+
+The first dataset I analyzed was my own.  I wanted to explore whether those who went out to eat consumed more calories than those who did not - broken down by age group and gender.  I also wanted to explore the percentage of calories eaten out (for those who did) also by age group and gender.
+
+```{r}
+calories <- read.csv('https://raw.githubusercontent.com/jeffnieman11/Data607_Project2/master/calories%20and%20restaurants.csv', header = TRUE, na.strings="")
+calories
+
+require(tidyr)
+require(zoo)
+require(dplyr)
+require(ggplot2)
+require(stringr)
+
+calories1 <- na.locf(calories) 
+ 
+# Compare calories of those who eat out with those who do not
+caloriesshort <- calories1[,c(1:5,8,11)]
+
+colnames(caloriesshort) <- c("Gender", "Age", "Sample", "Percent.EatOut", "AvgCals.All", "AvgCals.EatOut", "AvgCals.NoEatOut")
+caloriesshort$Sample <- as.numeric(as.character(caloriesshort$Sample))
+caloriesshort$Percent.EatOut <- as.numeric((as.character(caloriesshort$Percent.EatOut)))
+caloriesshort$AvgCals.All <- as.numeric(as.character(caloriesshort$AvgCals.All))
+caloriesshort$AvgCals.EatOut <- as.numeric(as.character(caloriesshort$AvgCals.EatOut))
+caloriesshort$AvgCals.NoEatOut <- as.numeric(as.character(caloriesshort$AvgCals.NoEatOut))
+
+calories2 <- mutate(caloriesshort, Sample.EatOut =round(Sample*Percent.EatOut/100))
+calories3 <- mutate(calories2, Sample.NoEatOut = Sample - Sample.EatOut)
+calories4 <- mutate(calories3, TotalCals.EatOut = Sample.EatOut*AvgCals.EatOut)
+calories5 <- mutate(calories4, TotalCals.NoEatOut = Sample.NoEatOut*AvgCals.NoEatOut)
+
+#Create a ratio by the groups for calories of those who went out and those who did not, and plot to see who goes above 100% and compare.
+calories6 <- calories5 %>%
+    group_by(Gender)  %>%
+    summarise(AvgCals.EatOut = sum(TotalCals.EatOut)/sum(Sample.EatOut), AvgCals.NoEatOut = sum(TotalCals.NoEatOut)/sum(Sample.NoEatOut))
+calories6$Ratio <- calories6$AvgCals.EatOut/calories6$AvgCals.NoEatOut
+calories6$Ratio <- as.numeric(calories6$Ratio)
+calories6
+
+ggplot(calories6, aes(x=Gender, y=Ratio)) + geom_bar(stat = "identity", position = "dodge")
+
+#  Conclusion : Both men and women eat more calories when they go out and the percentage of increase is nearly identical.
+
+calories7 <- calories5 %>%
+    group_by(Age)  %>%
+    summarise(AvgCals.EatOut = sum(TotalCals.EatOut)/sum(Sample.EatOut), AvgCals.NoEatOut = sum(TotalCals.NoEatOut)/sum(Sample.NoEatOut))
+calories7$Ratio <- calories7$AvgCals.EatOut/calories7$AvgCals.NoEatOut
+calories7$Ratio <- as.numeric(calories7$Ratio)
+calories7
+
+ggplot(calories7, aes(x=Age, y=Ratio)) + geom_bar(stat="identity", position = "dodge")
+
+#  Conclusion:  All age groups eat more calories when they go out - but only slightly for the 2 kid groups and highest for the teenage group 12-19.
+
+#Compare % of calories from restaurants
+calrest <- calories1[,c(1:4,8:10)]
+colnames(calrest) <- c("Gender", "Age", "Sample", "Percent.EatOut", "AvgCals.EatOut", "AvgCals.FromEatOut","Percent.Cals.EatOut")
+calrest$Sample <- as.numeric(as.character(calrest$Sample))
+calrest$Percent.EatOut <- as.numeric((as.character(calrest$Percent.EatOut)))
+calrest$AvgCals.EatOut <- as.numeric(as.character(calrest$AvgCals.EatOut))
+calrest$AvgCals.FromEatOut <- as.numeric(as.character((calrest$AvgCals.FromEatOut)))
+
+calrest1 <- mutate(calrest, Sample.EatOut =round(Sample*Percent.EatOut/100))
+calrest2 <- mutate(calrest1, TotalCals.EatOut = Sample.EatOut*AvgCals.EatOut)
+calrest3 <- mutate(calrest2, TotalCals.FromEatOut = Sample.EatOut*AvgCals.FromEatOut)
+calrest3
+
+calrest4 <- calrest3 %>%
+  group_by(Gender) %>%
+  summarise(Percent.Cals.EatOut = 100*sum(TotalCals.FromEatOut)/sum(TotalCals.EatOut))
+calrest4
+
+ggplot(calrest4, aes(x=Gender, y=Percent.Cals.EatOut)) + geom_bar(stat="identity", position = "dodge")
+
+
+calrest5 <- calrest3 %>%
+  group_by(Age) %>%
+  summarise(Percent.Cals.EatOut = 100*sum(TotalCals.FromEatOut)/sum(TotalCals.EatOut))
+calrest5
+
+ggplot(calrest5, aes(x=Age, y=Percent.Cals.EatOut)) + geom_bar(stat="identity", position = "dodge")
+``` 
+
+The second data I analyzed was from James on the relationship between college education and jobs.  I also looked at the other variables for any relationship.
+
+```{r}
+jobs <- read.csv('https://raw.githubusercontent.com/jeffnieman11/Data607_Project2/dea005e80fd96bd01fa1ac7cfafa0b027d973683/jobs%20and%20county.csv', header=TRUE)
+jobs
+
+#  After downloading the data I used the gather function to tidy up the data and extracted only the numerical component for the year.
+
+jobs1 <- gather(jobs, "Jobs", "n", 8:11)
+jobs2 <- gather(jobs1, "College", "m", 4:7)
+jobs2$Jobs <- str_extract_all(jobs2$Jobs, "[0-9]{4}")
+jobs2$College <- str_extract_all(jobs2$College, "[0-9]{4}")
+jobs2$College <- as.numeric(as.character(jobs2$College))
+jobs2$Jobs <- as.numeric(as.character(jobs2$Jobs))
+jobs2
+
+#  I then minimized the data to those where the years for job count and college percentage were the same and added some column names.
+
+jobs3 <- subset(jobs2, Jobs==College)
+jobs4 <- jobs3[,c(1:5,7)]
+colnames(jobs4) <- c("County", "LandArea", "NatAmenity", "Year", "Jobs","College" )
+jobs4
+
+#  I then plotted to see the relationships between college and jobs, Land area and jobs and natural amenity and jobs.
+
+ggplot(jobs4, aes(College, Jobs)) + geom_line()
+ggplot(jobs4, aes(LandArea, Jobs)) + geom_point()
+ggplot(jobs4, aes(NatAmenity, Jobs)) + geom_point()
+
+# Conclusion - the graph shows a general upward trend for job growth as college education increases.  Land area is less conclusive although the largest county has the highest rate in each year.  Ironically the county with the natural amenity has the lowest jobs.  
+``` 
+
+My final analysis was the data provided by Valerie Briot.  I looked at the highest average downloads for apps - for free apps and for paid apps, along with the average downloads for each app across both platforms and for each platform.
+
+```{r}
+apps <- read.csv('https://raw.githubusercontent.com/jeffnieman11/Data607_Project2/master/Mobile%20App%20downloads.csv', header=TRUE, skip=2)
+apps
+
+# After downloading the data I began by creating separate data frames for apple and android platforms.
+
+appleapps <- apps[,1:10]
+appleapps
+googleapps <- apps[,c(1:3,11:17)]
+googleapps
+
+# For the apple apps I made the data tidy.
+
+appleapp1 <- gather(appleapps, "Year", "Downloads", 5:10)
+appleapp1$Year <- str_extract_all(appleapp1$Year, "[0-9]{4}")
+appleapp1$Source <- "Apple Store"
+colnames(appleapp1) <- c("App.Name", "Type", "Paid.Free", "Release.Date", "Year", "Downloads", "Source")
+appleapp1$Release.Date <- as.character.Date(appleapp1$Release.Date)
+
+# I then summarized the data for average downloads in the apple platforms (fulfilling the assignment request).
+
+appleapp2 <- appleapp1 %>%
+  group_by(App.Name) %>%
+  summarise(Avg.Downloads = mean(Downloads, na.rm = TRUE))
+appleapp2
+
+#  For the android apps I once again made the data tidy.
+
+googleapp1 <- gather(googleapps, "Year", "Downloads", 5:10)
+googleapp1$Year <- str_extract_all(googleapp1$Year, "[0-9]{4}")
+googleapp1$Source <- "Google Play"
+colnames(googleapp1) <- c("App.Name", "Type", "Paid.Free", "Release.Date", "Year", "Downloads", "Source")
+googleapp1$Release.Date <- as.character.Date(googleapp1$Release.Date)
+
+#  I then summarized the data for average downloads in the android platforms (again fulfilling the assignment request).
+
+googleapp2 <- googleapp1 %>%
+  group_by(App.Name) %>%
+  summarise(Avg.Downloads = mean(Downloads, na.rm = TRUE))
+googleapp2
+
+#  I combined the two data frames into one and summarized the average downloads for each app with both platforms combined (fulfilling the assignment request for across providers).
+
+apps1 <- rbind(googleapp1,appleapp1)
+apps1
+
+apps2 <- apps1 %>%
+  group_by(App.Name) %>%
+  summarise(Avg.Downloads = mean(Downloads, na.rm = TRUE)) 
+
+apps2
+
+#  I then created a subet of the data for free apps and summarized the average downloads for each free app.
+
+freeapps <- subset(apps1, Paid.Free == "Free")
+freeapps
+
+freeapps1 <- freeapps %>%
+  group_by(App.Name) %>%
+  summarise(Avg.Downloads = mean(Downloads, na.rm = TRUE)) 
+freeapps1
+
+#  Conclusion:  The Temple Run 2 app had the most average downloads among the free apps.
+#  I followed the same procedure for the paid apps.
+
+paidapps <- subset(apps1, Paid.Free == "Paid")
+paidapps
+
+paidapps1 <- paidapps %>%
+  group_by(App.Name) %>%
+  summarise(Avg.Downloads = mean(Downloads, na.rm = TRUE)) 
+paidapps1
+
+#  Conclusion:  The NBA 2K16 app had the most average downloads among the paid apps.
